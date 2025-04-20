@@ -4,9 +4,16 @@ use rand::Rng;
 
 const WIDTH: usize = 640;
 const HEIGHT: usize = 480;
-const ALIVE_COLOR: u32 = 0x0000FF; // Blue
-const DEAD_COLOR: u32 = 0xFFFFFF; // White
+const ALIVE_COLOR: u32 = 0x6A66A3; // Foreground
+const DEAD_COLOR: u32 = 0xDDD8B8; // Background
 
+/**
+ * References:
+ * - Game of Life rules: https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life
+ * - Palette generator: https://coolors.co/
+ * - Rust OCL bindings: https://crates.io/crates/ocl
+ */
+ 
 fn main() {
     // OpenCL kernel
     let kernel_source = r#"
