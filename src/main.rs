@@ -2,8 +2,8 @@ use ocl::ProQue;
 use minifb::{Key, Window, WindowOptions};
 use rand::Rng;
 
-const WIDTH: usize = 800;
-const HEIGHT: usize = 600;
+const WIDTH: usize = 640;
+const HEIGHT: usize = 480;
 const ALIVE_COLOR: u32 = 0x0000FF; // Blue
 const DEAD_COLOR: u32 = 0xFFFFFF; // White
 
@@ -41,7 +41,7 @@ fn main() {
         .build()
         .unwrap();
 
-    let grid: Vec<u8> = (0..WIDTH * HEIGHT)
+    let mut grid: Vec<u8> = (0..WIDTH * HEIGHT)
         .map(|_| if rand::rng().random_bool(0.2) { 1 } else { 0 })
         .collect();
     let buffer_grid = pro_que.create_buffer::<u8>().unwrap();
@@ -60,7 +60,7 @@ fn main() {
 
     // Initialize window
     let mut window = Window::new(
-        "Game of Life - Press ESC to exit",
+        "Game of Life - Press ESC to exit, SPACE to reset",
         WIDTH,
         HEIGHT,
         WindowOptions::default(),
@@ -70,6 +70,14 @@ fn main() {
     let mut frame_buffer = vec![0u32; WIDTH * HEIGHT];
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
+        // Check for space key to reset the grid
+        if window.is_key_down(Key::Space) {
+            grid = (0..WIDTH * HEIGHT)
+                .map(|_| if rand::rng().random_bool(0.2) { 1 } else { 0 })
+                .collect();
+            buffer_grid.write(&grid).enq().unwrap();
+        }
+
         // Execute kernel
         unsafe {
             kernel.enq().unwrap();
