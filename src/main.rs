@@ -1,0 +1,93 @@
+use ocl::ProQue;
+use minifb::{Key, Window, WindowOptions};
+use rand::Rng;
+
+const WIDTH: usize = 800;
+const HEIGHT: usize = 600;
+const ALIVE_COLOR: u32 = 0x0000FF; // Blue
+const DEAD_COLOR: u32 = 0xFFFFFF; // White
+
+fn main() {
+    // OpenCL kernel
+    let kernel_source = r#"
+        __kernel void game_of_life(__global uchar* grid, __global uchar* new_grid, int width, int height) {
+            int x = get_global_id(0);
+            int y = get_global_id(1);
+            int idx = y * width + x;
+
+            int alive_neighbors = 0;
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dx = -1; dx <= 1; dx++) {
+                    if (dx == 0 && dy == 0) continue;
+                    int nx = (x + dx + width) % width;
+                    int ny = (y + dy + height) % height;
+                    int n_idx = ny * width + nx;
+                    alive_neighbors += grid[n_idx];
+                }
+            }
+
+            if (grid[idx] == 1) {
+                new_grid[idx] = (alive_neighbors == 2 || alive_neighbors == 3) ? 1 : 0;
+            } else {
+                new_grid[idx] = (alive_neighbors == 3) ? 1 : 0;
+            }
+        }
+    "#;
+
+    // Initialize OpenCL
+    let pro_que = ProQue::builder()
+        .src(kernel_source)
+        .dims((WIDTH, HEIGHT))
+        .build()
+        .unwrap();
+
+    let grid: Vec<u8> = (0..WIDTH * HEIGHT)
+        .map(|_| if rand::rng().random_bool(0.2) { 1 } else { 0 })
+        .collect();
+    let buffer_grid = pro_que.create_buffer::<u8>().unwrap();
+    let buffer_new_grid = pro_que.create_buffer::<u8>().unwrap();
+
+    buffer_grid.write(&grid).enq().unwrap();
+
+    let kernel = pro_que
+        .kernel_builder("game_of_life")
+        .arg(&buffer_grid)
+        .arg(&buffer_new_grid)
+        .arg(WIDTH as i32)
+        .arg(HEIGHT as i32)
+        .build()
+        .unwrap();
+
+    // Initialize window
+    let mut window = Window::new(
+        "Game of Life - Press ESC to exit",
+        WIDTH,
+        HEIGHT,
+        WindowOptions::default(),
+    )
+    .unwrap();
+
+    let mut frame_buffer = vec![0u32; WIDTH * HEIGHT];
+
+    while window.is_open() && !window.is_key_down(Key::Escape) {
+        // Execute kernel
+        unsafe {
+            kernel.enq().unwrap();
+        }
+
+        // Read back the new grid
+        let mut new_grid = vec![0u8; WIDTH * HEIGHT];
+        buffer_new_grid.read(&mut new_grid).enq().unwrap();
+
+        // Update the frame buffer
+        for (i, &cell) in new_grid.iter().enumerate() {
+            frame_buffer[i] = if cell == 1 { ALIVE_COLOR } else { DEAD_COLOR };
+        }
+
+        // Display the frame
+        window.update_with_buffer(&frame_buffer, WIDTH, HEIGHT).unwrap();
+
+        // Swap buffers
+        buffer_grid.write(&new_grid).enq().unwrap();
+    }
+}
