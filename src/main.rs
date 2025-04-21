@@ -1,5 +1,7 @@
+use std::str::FromStr;
+
+use minifb::{Icon, Key, Window, WindowOptions};
 use ocl::ProQue;
-use minifb::{Key, Window, WindowOptions};
 use rand::Rng;
 
 const WIDTH: usize = 640;
@@ -13,7 +15,10 @@ const DEAD_COLOR: u32 = 0xDDD8B8; // Background
  * - Palette generator: https://coolors.co/
  * - Rust OCL bindings: https://crates.io/crates/ocl
  */
- 
+
+#[cfg(target_os = "windows")]
+static ICO_FILE: &[u8] = include_bytes!("../resources/app.ico");
+
 fn main() {
     // OpenCL kernel
     let kernel_source = r#"
@@ -74,6 +79,12 @@ fn main() {
     )
     .unwrap();
 
+    #[cfg(target_os = "windows")]
+    {
+        let temp_file = temp_file::with_contents(ICO_FILE);
+        window.set_icon(Icon::from_str(temp_file.path().to_str().unwrap()).unwrap());
+    }
+
     let mut frame_buffer = vec![0u32; WIDTH * HEIGHT];
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
@@ -100,7 +111,9 @@ fn main() {
         }
 
         // Display the frame
-        window.update_with_buffer(&frame_buffer, WIDTH, HEIGHT).unwrap();
+        window
+            .update_with_buffer(&frame_buffer, WIDTH, HEIGHT)
+            .unwrap();
 
         // Swap buffers
         buffer_grid.write(&new_grid).enq().unwrap();
