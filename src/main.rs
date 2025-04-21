@@ -2,7 +2,7 @@
 
 use std::str::FromStr;
 
-use minifb::{Icon, Key, Window, WindowOptions};
+use minifb::{Icon, Key, MouseButton, Window, WindowOptions};
 use ocl::ProQue;
 use rand::Rng;
 
@@ -18,11 +18,18 @@ const DEAD_COLOR: u32 = 0xDDD8B8; // Background
  * - Rust OCL bindings: https://crates.io/crates/ocl
  */
 
+
 #[cfg(target_os = "windows")]
 static ICO_FILE: &[u8] = include_bytes!("../resources/app.ico");
 
 fn main() {
-    // OpenCL kernel
+
+    // OpenCL kernel source code
+    // This kernel implements the Game of Life rules
+    // Each cell is represented as a byte (0 for dead, 1 for alive)
+    // The kernel processes the grid in parallel
+    // Each thread computes the next state of a cell based on its neighbors
+    // The grid is wrapped around (toroidal array)
     let kernel_source = r#"
         __kernel void game_of_life(__global uchar* grid, __global uchar* new_grid, int width, int height) {
             int x = get_global_id(0);
@@ -72,7 +79,6 @@ fn main() {
         .build()
         .unwrap();
 
-    // Initialize window
     let mut window = Window::new(
         "RustedBytes Game of Life - Press ESC to exit, SPACE to reset",
         WIDTH,
@@ -90,12 +96,26 @@ fn main() {
     let mut frame_buffer = vec![0u32; WIDTH * HEIGHT];
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        // Check for space key to reset the grid
-        if window.is_key_down(Key::Space) {
+        
+         // Check for space key to reset the grid
+        if window.is_key_down(Key::Space) || window.get_mouse_down(MouseButton::Right) {
             grid = (0..WIDTH * HEIGHT)
                 .map(|_| if rand::rng().random_bool(0.2) { 1 } else { 0 })
                 .collect();
             buffer_grid.write(&grid).enq().unwrap();
+        }
+
+        // Check for mouse click to set cells to alive
+        if let Some((mouse_x, mouse_y)) = window.get_mouse_pos(minifb::MouseMode::Clamp) {
+            if window.get_mouse_down(MouseButton::Left) {
+                let x = mouse_x as usize;
+                let y = mouse_y as usize;
+                if x < WIDTH && y < HEIGHT {
+                    buffer_grid.read(&mut grid).enq().unwrap();
+                    grid[y * WIDTH + x] = 1; // Set the cell to alive
+                    buffer_grid.write(&grid).enq().unwrap();
+                }
+            }
         }
 
         // Execute kernel
@@ -117,7 +137,7 @@ fn main() {
             .update_with_buffer(&frame_buffer, WIDTH, HEIGHT)
             .unwrap();
 
-        // Swap buffers
+         // Swap buffers
         buffer_grid.write(&new_grid).enq().unwrap();
     }
 }
