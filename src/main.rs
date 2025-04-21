@@ -1,11 +1,13 @@
+#![windows_subsystem = "windows"]
+
 use std::str::FromStr;
 
 use minifb::{Icon, Key, Window, WindowOptions};
 use ocl::ProQue;
 use rand::Rng;
 
-const WIDTH: usize = 640;
-const HEIGHT: usize = 480;
+const WIDTH: usize = 800;
+const HEIGHT: usize = 600;
 const ALIVE_COLOR: u32 = 0x6A66A3; // Foreground
 const DEAD_COLOR: u32 = 0xDDD8B8; // Background
 
@@ -72,7 +74,7 @@ fn main() {
 
     // Initialize window
     let mut window = Window::new(
-        "Game of Life - Press ESC to exit, SPACE to reset",
+        "RustedBytes Game of Life - Press ESC to exit, SPACE to reset",
         WIDTH,
         HEIGHT,
         WindowOptions::default(),
