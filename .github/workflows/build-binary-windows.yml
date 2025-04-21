@@ -1,0 +1,49 @@
+name: Release Build on Main
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Build in release mode
+        run: cargo build --release
+
+      - name: Prepare ZIP archive
+        run: |
+          $ProjectName = "$(Split-Path -Leaf $PWD)"
+          $ExePath = "target\\release\\$ProjectName.exe"
+          New-Item -ItemType Directory -Force -Path release
+          Copy-Item $ExePath -Destination "release\\$ProjectName.exe"
+          Compress-Archive -Path "release\\$ProjectName.exe" -DestinationPath "release\\$ProjectName.zip"
+          Remove-Item "release\\$ProjectName.exe"
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clean old ZIPs
+        run: |
+          git fetch
+          git checkout ${{ github.ref }}
+          Remove-Item release\\*.zip -Force -ErrorAction SilentlyContinue
+
+      - name: Commit new release
+        run: |
+          git add release/*.zip
+          git commit -m "Update release build for commit ${{ github.sha }}" || echo "No changes to commit"
+          git push
