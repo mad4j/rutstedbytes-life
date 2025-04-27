@@ -2,12 +2,12 @@
 
 use std::str::FromStr;
 
-use minifb::{Icon, Key, MouseButton, Window, WindowOptions};
+use minifb::{Icon, Key, MouseButton, Scale, Window, WindowOptions};
 use ocl::ProQue;
 use rand::Rng;
 
-const WIDTH: usize = 800;
-const HEIGHT: usize = 600;
+const WIDTH: usize = 480;
+const HEIGHT: usize = 360;
 const ALIVE_COLOR: u32 = 0x6A66A3; // Foreground
 const DEAD_COLOR: u32 = 0xDDD8B8; // Background
 
@@ -18,11 +18,19 @@ const DEAD_COLOR: u32 = 0xDDD8B8; // Background
  * - Rust OCL bindings: https://crates.io/crates/ocl
  */
 
-
 #[cfg(target_os = "windows")]
-static ICO_FILE: &[u8] = include_bytes!("../resources/app.ico");
+const ICO_FILE: &[u8] = include_bytes!("../resources/app.ico");
+
+
+fn get_title(fps: usize) -> String {
+    format!("RustedBytes Game of Life - Press ESC to exit, SPACE to reset ({}fps)", fps)
+}
+
 
 fn main() {
+
+    let mut current_fps = 10; // Default FPS
+
 
     // OpenCL kernel source code
     // This kernel implements the Game of Life rules
@@ -80,12 +88,19 @@ fn main() {
         .unwrap();
 
     let mut window = Window::new(
-        "RustedBytes Game of Life - Press ESC to exit, SPACE to reset",
+        &get_title(current_fps),
         WIDTH,
         HEIGHT,
-        WindowOptions::default(),
+        WindowOptions {
+            scale: Scale::X2,
+            ..WindowOptions::default()
+        },
     )
     .unwrap();
+
+    // The animation speed is set to 10 FPS (frames per second)    
+    window.set_target_fps(current_fps);
+    
 
     #[cfg(target_os = "windows")]
     {
@@ -96,13 +111,24 @@ fn main() {
     let mut frame_buffer = vec![0u32; WIDTH * HEIGHT];
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        
-         // Check for space key to reset the grid
+        // Check for space key to reset the grid
         if window.is_key_down(Key::Space) || window.get_mouse_down(MouseButton::Right) {
             grid = (0..WIDTH * HEIGHT)
                 .map(|_| if rand::rng().random_bool(0.2) { 1 } else { 0 })
                 .collect();
             buffer_grid.write(&grid).enq().unwrap();
+        }
+
+        // Adjust frame rate with 'Up' and 'Down' keys
+        if window.is_key_down(Key::Up) {
+            current_fps = (current_fps + 5).min(250);
+            window.set_target_fps(current_fps);
+            window.set_title(&get_title(current_fps));
+        }
+        if window.is_key_down(Key::Down) {
+            current_fps = (current_fps - 5).max(5);
+            window.set_target_fps(current_fps);
+            window.set_title(&get_title(current_fps));
         }
 
         // Check for mouse click to set cells to alive
@@ -137,7 +163,7 @@ fn main() {
             .update_with_buffer(&frame_buffer, WIDTH, HEIGHT)
             .unwrap();
 
-         // Swap buffers
+        // Swap buffers
         buffer_grid.write(&new_grid).enq().unwrap();
     }
 }
