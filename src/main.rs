@@ -1,5 +1,23 @@
+/*!
+ * RustedBytes Game of Life
+ * A simple implementation of Conway's Game of Life using OpenCL for parallel computation.
+ * This program creates a window where you can interact with the simulation using the mouse and keyboard.
+ * You can click to toggle cells, use the spacebar to reset the grid, and adjust the frames per second (FPS) using the up and down arrow keys.
+ * The simulation runs in a loop, updating the grid based on the rules of the Game of Life.
+ * The OpenCL kernel is used to compute the next generation of cells based on their neighbors.
+ * The program uses the minifb crate for window management and rendering, and the ocl crate for OpenCL bindings.
+ * 
+ * References:
+ * - Game of Life rules: https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life
+ * - Palette generator: https://coolors.co/
+ * - Rust OCL bindings: https://crates.io/crates/ocl
+ */
+
+
+// no shell window
 #![windows_subsystem = "windows"]
 
+use clap::Parser;
 use std::str::FromStr;
 
 use minifb::{Icon, Key, MouseButton, Scale, Window, WindowOptions};
@@ -11,26 +29,32 @@ const HEIGHT: usize = 360;
 const ALIVE_COLOR: u32 = 0x6A66A3; // Foreground
 const DEAD_COLOR: u32 = 0xDDD8B8; // Background
 
-/**
- * References:
- * - Game of Life rules: https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life
- * - Palette generator: https://coolors.co/
- * - Rust OCL bindings: https://crates.io/crates/ocl
- */
-
 #[cfg(target_os = "windows")]
 const ICO_FILE: &[u8] = include_bytes!("../resources/app.ico");
 
-
-fn get_title(fps: usize) -> String {
-    format!("RustedBytes Game of Life - Press ESC to exit, SPACE to reset ({}fps)", fps)
+/// Command-line arguments for the Game of Life application
+#[derive(Parser, Debug)]
+#[command(
+    name = env!("CARGO_PKG_NAME"),
+    about = env!("CARGO_PKG_DESCRIPTION"),
+    long_about = env!("CARGO_PKG_DESCRIPTION"),
+    version = env!("CARGO_PKG_VERSION"),
+    author = env!("CARGO_PKG_AUTHORS")
+)]
+struct Args {
+    /// Initial frames per second (FPS)
+    #[arg(short, long, default_value_t = 60)]
+    fps: usize,
 }
 
+fn get_title(fps: usize) -> String {
+    format!("RustedBytes Game of Life ({}fps)", fps)
+}
 
 fn main() {
-
-    let mut current_fps = 10; // Default FPS
-
+    // Parse command-line arguments
+    let args = Args::parse();
+    let mut current_fps = args.fps; // Use the FPS value from the command-line arguments
 
     // OpenCL kernel source code
     // This kernel implements the Game of Life rules
@@ -98,9 +122,7 @@ fn main() {
     )
     .unwrap();
 
-    // The animation speed is set to 10 FPS (frames per second)    
     window.set_target_fps(current_fps);
-    
 
     #[cfg(target_os = "windows")]
     {
@@ -138,7 +160,7 @@ fn main() {
                 let y = mouse_y as usize;
                 if x < WIDTH && y < HEIGHT {
                     buffer_grid.read(&mut grid).enq().unwrap();
-                    grid[y * WIDTH + x] = 1; // Set the cell to alive
+                    grid[y * WIDTH + x] = 1;
                     buffer_grid.write(&grid).enq().unwrap();
                 }
             }
@@ -153,17 +175,18 @@ fn main() {
         let mut new_grid = vec![0u8; WIDTH * HEIGHT];
         buffer_new_grid.read(&mut new_grid).enq().unwrap();
 
-        // Update the frame buffer
+        // Update the frame buffer with the new grid
+        // Convert the grid to colors for rendering
         for (i, &cell) in new_grid.iter().enumerate() {
             frame_buffer[i] = if cell == 1 { ALIVE_COLOR } else { DEAD_COLOR };
         }
 
-        // Display the frame
+        // update the buffer with the new grid
         window
             .update_with_buffer(&frame_buffer, WIDTH, HEIGHT)
             .unwrap();
 
-        // Swap buffers
+        // Display the new grid in the window
         buffer_grid.write(&new_grid).enq().unwrap();
     }
 }
