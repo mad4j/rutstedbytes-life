@@ -11,6 +11,7 @@
  * - Game of Life rules: https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life
  * - Palette generator: https://coolors.co/
  * - Rust OCL bindings: https://crates.io/crates/ocl
+ * - OpenCL programming guide: https://www.khronos.org/opencl/
  */
 
 
